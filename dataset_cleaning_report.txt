@@ -1,0 +1,31 @@
+DATASET CLEANING REPORT
+======================
+
+Source Dataset: ./data/raw/
+Cleaned Dataset: ./data/cleaned/
+
+SUMMARY STATISTICS
+------------------
+Total files processed: 26179
+Total files copied: 26003
+Total files excluded: 176
+
+EXCLUSION DETAILS
+----------------
+Grayscale images excluded: 1
+RGBA images excluded: 50
+Small images excluded: 125
+Duplicate images excluded: 0
+
+CLASS DISTRIBUTION IN CLEANED DATASET
+------------------------------------
+butterfly: 2065 images
+cat: 1653 images
+chicken: 3082 images
+cow: 1848 images
+dog: 4849 images
+elephant: 1433 images
+horse: 2610 images
+sheep: 1800 images
+spider: 4806 images
+squirrel: 1857 images

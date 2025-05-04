@@ -1,0 +1,85 @@
+Dataset Folder Structure
+
+DATASET STRUCTURE FOR CHATBOT REFERENCE:
+DATASET_PATH: ./data/raw/
+FOLDER_STRUCTURE:
+  - sheep (1820 images)
+  - butterfly (2112 images)
+  - chicken (3098 images)
+  - elephant (1446 images)
+  - cat (1668 images)
+  - horse (2623 images)
+  - squirrel (1862 images)
+  - cow (1866 images)
+  - spider (4821 images)
+  - dog (4863 images)
+
+Dataset Summary Statistics
+
+KEY STATISTICS:
+ Total Classes  Total Images  Avg Images/Class  Unique Formats  Corrupted Files
+            10         26179            2617.9               3                0
+Small Image Analysis
+
+SMALL IMAGE DISTRIBUTION:
+Threshold  Count % of Total
+  < 224px  11956      45.7%
+  < 128px    125       0.5%
+   < 64px      5       0.0%
+   < 32px      0       0.0%
+Class Distribution
+
+CLASS DISTRIBUTION (SORTED BY COUNT):
+    Class  Count  % Total
+      dog   4863     18.6
+   spider   4821     18.4
+  chicken   3098     11.8
+    horse   2623     10.0
+butterfly   2112      8.1
+      cow   1866      7.1
+ squirrel   1862      7.1
+    sheep   1820      7.0
+      cat   1668      6.4
+ elephant   1446      5.5
+Image Characteristics
+
+RESOLUTION STATISTICS (PIXELS):
+          Width  Height
+Metric                 
+Average   320.0   252.6
+Minimum    60.0    57.0
+Maximum  6720.0  6000.0
+
+ASPECT RATIO STATISTICS (WIDTH/HEIGHT):
+         Value
+Metric        
+Average   1.31
+Median    1.33
+Minimum   0.29
+Maximum   4.23
+Std Dev   0.31
+
+ASPECT RATIO CATEGORIES:
+        Category  Count % of Total
+Square (0.9-1.1)   3029      11.6%
+ Portrait (<0.9)   3129      12.0%
+Landscape (>1.1)  20021      76.5%
+
+COLOR CHANNELS:
+Channel Type  Count
+         RGB  26128
+        RGBA     50
+   Grayscale      1
+File Formats
+
+FOUND FILE EXTENSIONS:
+Extensions
+     .jpeg
+      .jpg
+      .png
+Corrupted Files
+
+OK: No corrupted files found
+Sample Images
+
+Sample images saved to 'sample_images.png'
