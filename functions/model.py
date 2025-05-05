@@ -2,7 +2,7 @@
 import torch.nn as nn
 import torch.optim as optim
 from torchvision.models import resnet50, ResNet50_Weights
-from config import NUM_CLASSES, device
+from config import NUM_CLASSES, DEVICE
 
 
 # Define the model architecture with ResNet50 backbone
@@ -44,11 +44,11 @@ class AnimalClassifier(nn.Module):
 # Function to create model, loss function, and optimizer
 def create_model(learning_rate, dropout_rate, weight_decay, class_weights=None):
     model = AnimalClassifier(NUM_CLASSES, dropout_rate=dropout_rate)
-    model = model.to(device)
+    model = model.to(DEVICE)
     
     # Create weighted loss function if class weights are provided
     if class_weights is not None:
-        class_weights = class_weights.to(device)
+        class_weights = class_weights.to(DEVICE)
         criterion = nn.CrossEntropyLoss(weight=class_weights)
     else:
         criterion = nn.CrossEntropyLoss()

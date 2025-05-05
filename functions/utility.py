@@ -1,3 +1,5 @@
+"""Utility functions for data processing and analysis."""
+
 
 # Define a function to monitor memory usage
 def print_gpu_memory():
@@ -33,6 +35,8 @@ def analyze_webdataset(path_pattern, verbose=True):
     import torch
     import webdataset as wds
     from tqdm.auto import tqdm
+    import warnings
+    warnings.filterwarnings("ignore", category=UserWarning, module="webdataset")
 
     if verbose:
         print(f"Analyzing WebDataset at {path_pattern}...")

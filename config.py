@@ -1,15 +1,14 @@
-import torch
-import numpy as np
-import random
+"""
+Configuration file for the image classification project.
+This file contains default values for various parameters used in the project.
+It is designed to be modified in a Jupyter notebook environment, where the user can set specific paths, class information, and other parameters.
+"""
+
+# Device configuration (changed in notebook)
+DEVICE = "cpu"  # Default to CPU
 
 # Default configuration values
 SEED = 42
-random.seed(SEED)
-np.random.seed(SEED)
-torch.manual_seed(SEED)
-torch.cuda.manual_seed_all(SEED)
-torch.backends.cudnn.deterministic = True
-torch.backends.cudnn.benchmark = False
 
 # Paths (will be populated in notebook)
 TRAIN_PATHS = []
@@ -19,6 +18,3 @@ TEST_PATHS = []
 NUM_CLASSES = 0
 CLASS_NAMES = []
 CLASS_WEIGHTS = None
-
-# Device configuration
-device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")

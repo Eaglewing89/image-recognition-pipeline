@@ -4,7 +4,7 @@ from functions.utility import print_gpu_memory
 import optuna
 from optuna.samplers import TPESampler
 import torch
-from config import TRAIN_PATHS, CLASS_NAMES, CLASS_WEIGHTS, device, SEED
+from config import TRAIN_PATHS, CLASS_NAMES, CLASS_WEIGHTS, SEED
 import webdataset as wds
 import io
 from PIL import Image
@@ -44,8 +44,8 @@ def objective_kfold(trial, k=3, verbose=True, first_fold_min_acc=90.0):
     weight_decay = trial.suggest_float("weight_decay", 1e-6, 1e-3, log=True)
     dropout_rate = trial.suggest_float("dropout_rate", 0.0, 0.5)
     augmentation_intensity = trial.suggest_categorical("augmentation_intensity", ["low", "medium", "high"])
-    patience = trial.suggest_int("patience", 3, 10)
-    max_epochs = trial.suggest_int("max_epochs", 10, 30)
+    patience = trial.suggest_int("patience", 3, 4)
+    max_epochs = trial.suggest_int("max_epochs", 5, 10)
     
     # Force smaller batch size for GPU memory constraints
     if torch.cuda.is_available():

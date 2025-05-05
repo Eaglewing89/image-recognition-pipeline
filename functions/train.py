@@ -2,7 +2,7 @@ import torch
 import torch.optim as optim
 from tqdm.auto import tqdm
 import mlflow
-from config import device
+from config import DEVICE
 from functions.utility import print_gpu_memory
 
 # Training function
@@ -24,7 +24,7 @@ def train_epoch(model, train_loader, criterion, optimizer, scheduler=None, disab
             break
             
         # Move data to device
-        inputs, labels = inputs.to(device), labels.to(device)
+        inputs, labels = inputs.to(DEVICE), labels.to(DEVICE)
         
         # Zero the parameter gradients
         optimizer.zero_grad()
@@ -79,7 +79,7 @@ def evaluate(model, val_loader, criterion, disable_progress=False, batch_size=8)
                 break
                 
             # Move data to device
-            inputs, labels = inputs.to(device), labels.to(device)
+            inputs, labels = inputs.to(DEVICE), labels.to(DEVICE)
             
             # Forward pass
             outputs = model(inputs)
