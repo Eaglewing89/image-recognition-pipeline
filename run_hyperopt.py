@@ -42,7 +42,7 @@ if __name__ == "__main__":
     db_path = "optuna_animals10_kfold.db"
     from functions.hyperopt import run_kfold_optuna_optimization
     study = run_kfold_optuna_optimization(
-        n_trials=2,
+        n_trials=200,
         k=3,
         verbose=False,
         storage=db_path,
