@@ -18,11 +18,13 @@ from functions.dataload import get_transforms
 from functions.dataload import create_stratified_kfolds
 import torch.optim as optim
 
+import collections
+import matplotlib.pyplot as plt
+from IPython.display import display
 
 
 
-
-def objective_kfold(trial, k=3, verbose=True, first_fold_min_acc=90.0):
+def objective_kfold(trial, k=3, verbose=True, first_fold_min_acc=90.0, notebook=False):
     """
     Objective function with k-fold cross validation for Optuna optimization.
     Implements a hybrid pruning approach:
@@ -38,14 +40,15 @@ def objective_kfold(trial, k=3, verbose=True, first_fold_min_acc=90.0):
     Returns:
         float: t-statistic lower bound of validation accuracy
     """
+    
     # Define hyperparameters to optimize
     learning_rate = trial.suggest_float("learning_rate", 1e-5, 1e-2, log=True)
     batch_size = trial.suggest_categorical("batch_size", [8, 16, 32])
     weight_decay = trial.suggest_float("weight_decay", 1e-6, 1e-3, log=True)
     dropout_rate = trial.suggest_float("dropout_rate", 0.0, 0.5)
     augmentation_intensity = trial.suggest_categorical("augmentation_intensity", ["low", "medium", "high"])
-    patience = trial.suggest_int("patience", 3, 4)
-    max_epochs = trial.suggest_int("max_epochs", 5, 10)
+    patience = trial.suggest_int("patience", 3, 6)
+    max_epochs = trial.suggest_int("max_epochs", 10, 20)
     
     # Force smaller batch size for GPU memory constraints
     if torch.cuda.is_available():
@@ -125,8 +128,22 @@ def objective_kfold(trial, k=3, verbose=True, first_fold_min_acc=90.0):
             )
             
             # Create data loaders
-            train_loader = DataLoader(train_dataset, batch_size=batch_size, num_workers=1)
-            val_loader = DataLoader(val_dataset, batch_size=batch_size, num_workers=1)
+            if notebook:
+                train_loader = DataLoader(train_dataset, batch_size=batch_size, num_workers=0)
+                val_loader = DataLoader(val_dataset, batch_size=batch_size, num_workers=0)
+            else:
+                train_loader = DataLoader(
+                    train_dataset, 
+                    batch_size=batch_size, 
+                    num_workers=4,
+                    pin_memory=True,
+                    persistent_workers=True)
+                val_loader = DataLoader(
+                    val_dataset, 
+                    batch_size=batch_size, 
+                    num_workers=4,
+                    pin_memory=True,
+                    persistent_workers=True)
             
             # Create model with the specified hyperparameters
             model, criterion, optimizer = create_model(
@@ -268,7 +285,7 @@ def objective_kfold(trial, k=3, verbose=True, first_fold_min_acc=90.0):
                     completed_trials = [t for t in trial.study.trials 
                                       if t.state == optuna.trial.TrialState.COMPLETE]
                     
-                    if len(completed_trials) >= 5:  # Need at least 5 completed trials for meaningful comparison
+                    if len(completed_trials) >= 20:  # Need at least 20 completed trials for meaningful comparison
                         values = [t.value for t in completed_trials if t.value is not None]
                         if values:  # Make sure we have valid values
                             median_value = np.median(values)
@@ -366,7 +383,7 @@ def objective_kfold(trial, k=3, verbose=True, first_fold_min_acc=90.0):
 
 
 
-def run_kfold_optuna_optimization(n_trials=5, k=5, verbose=True, study_name="animals10_kfold", storage=None, load_if_exists=True, first_fold_min_acc=90.0):
+def run_kfold_optuna_optimization(n_trials=5, k=5, verbose=True, study_name="animals10_kfold", storage=None, load_if_exists=True, first_fold_min_acc=90.0, notebook=False):
     """
     Run Optuna hyperparameter optimization with k-fold cross validation
     
@@ -415,8 +432,8 @@ def run_kfold_optuna_optimization(n_trials=5, k=5, verbose=True, study_name="ani
     if study is None:
         # Create a pruner - here we use the MedianPruner
         pruner = optuna.pruners.MedianPruner(
-            n_startup_trials=5,  # Number of trials to run before pruning starts
-            n_warmup_steps=5,    # Number of epochs to run before pruning can happen in a trial
+            n_startup_trials=20,  # Number of trials to run before pruning starts
+            n_warmup_steps=10,    # Number of epochs to run before pruning can happen in a trial
             interval_steps=1     # Evaluate pruning conditions after each epoch
         )
         
@@ -437,7 +454,7 @@ def run_kfold_optuna_optimization(n_trials=5, k=5, verbose=True, study_name="ani
     
     # Define objective function wrapper
     def objective_wrapper(trial):
-        return objective_kfold(trial, k=k, verbose=verbose, first_fold_min_acc=first_fold_min_acc)
+        return objective_kfold(trial, k=k, verbose=verbose, first_fold_min_acc=first_fold_min_acc, notebook=notebook)
     
     # Create callback function to show progress
     already_printed_trials = set()
@@ -476,3 +493,260 @@ def run_kfold_optuna_optimization(n_trials=5, k=5, verbose=True, study_name="ani
         print(f"Error during optimization: {e}")
     
     return study
+
+
+def visualize_best_trial_metrics(study, mlflow_client=None):
+    """
+    Visualize epoch-wise metrics from the best trial in an Optuna study.
+    Shows average validation accuracy and standard deviation over epochs.
+    
+    Args:
+        study: Optuna study object
+        mlflow_client: MLflow client (optional, will be created if None)
+    """
+    if study is None or not study.best_trial:
+        print("No best trial available for visualization.")
+        return
+    
+    best_trial = study.best_trial
+    print(f"Best Trial: #{best_trial.number}")
+    print(f"Value: {best_trial.value}")
+    print("\nParameters:")
+    for param_name, param_value in best_trial.params.items():
+        print(f"  {param_name}: {param_value}")
+    
+    # Get MLflow run ID from trial user attributes
+    mlflow_run_id = best_trial.user_attrs.get("mlflow_run_id")
+    if not mlflow_run_id:
+        print("\nCannot find MLflow run ID in trial user attributes.")
+        return
+    
+    print(f"\nMLflow Run ID: {mlflow_run_id}")
+    
+    # Create MLflow client if not provided
+    if mlflow_client is None:
+        mlflow_client = mlflow.tracking.MlflowClient()
+    
+    # Get run data
+    try:
+        run = mlflow_client.get_run(mlflow_run_id)
+    except Exception as e:
+        print(f"Error retrieving MLflow run: {e}")
+        return
+    
+    # Fetch all metrics history
+    avg_acc_history = mlflow_client.get_metric_history(mlflow_run_id, "epoch_avg_val_acc")
+    std_acc_history = mlflow_client.get_metric_history(mlflow_run_id, "epoch_std_val_acc")
+    
+    if not avg_acc_history:
+        print("No epoch_avg_val_acc metrics found for this run.")
+        return
+    
+    # Extract epoch (step) and values
+    epochs = [m.step for m in avg_acc_history]
+    avg_values = [m.value for m in avg_acc_history]
+    
+    std_values = []
+    if std_acc_history:
+        # Make sure std_values aligns with avg_values epochs
+        std_dict = {m.step: m.value for m in std_acc_history}
+        std_values = [std_dict.get(epoch, 0) for epoch in epochs]
+    
+    # Best epoch from params (subtract 1 because epochs are 0-indexed in the code)
+    best_avg_epoch = int(run.data.params.get("recommended_epochs", 0)) - 1
+    
+    # Create the plot
+    plt.figure(figsize=(12, 10))
+    
+    # Plot average validation accuracy
+    plt.subplot(2, 1, 1)
+    plt.plot(epochs, avg_values, 'b-', marker='o', label='Avg Validation Accuracy')
+    if best_avg_epoch in epochs:
+        best_value = avg_values[epochs.index(best_avg_epoch)]
+        plt.axvline(x=best_avg_epoch, color='r', linestyle='--', 
+                   label=f'Best Epoch: {best_avg_epoch+1} (Acc: {best_value:.2f}%)')
+        plt.plot(best_avg_epoch, best_value, 'ro', markersize=8)
+    
+    plt.xlabel('Epoch')
+    plt.ylabel('Validation Accuracy (%)')
+    plt.title('Average Validation Accuracy Across Folds')
+    plt.grid(True, linestyle='--', alpha=0.7)
+    plt.legend()
+    
+    # Plot standard deviation
+    if std_values:
+        plt.subplot(2, 1, 2)
+        plt.plot(epochs, std_values, 'g-', marker='o', label='Std Dev of Validation Accuracy')
+        if best_avg_epoch in epochs:
+            best_std = std_values[epochs.index(best_avg_epoch)]
+            plt.axvline(x=best_avg_epoch, color='r', linestyle='--', 
+                       label=f'Best Epoch: {best_avg_epoch+1} (Std: {best_std:.2f}%)')
+            plt.plot(best_avg_epoch, best_std, 'ro', markersize=8)
+        
+        plt.xlabel('Epoch')
+        plt.ylabel('Standard Deviation (%)')
+        plt.title('Standard Deviation of Validation Accuracy Across Folds')
+        plt.grid(True, linestyle='--', alpha=0.7)
+        plt.legend()
+    
+    plt.tight_layout()
+    plt.show()
+    
+    # Display best epoch metrics
+    if best_avg_epoch in epochs:
+        idx = epochs.index(best_avg_epoch)
+        best_avg = avg_values[idx]
+        best_std = std_values[idx] if std_values else 0
+        
+        print(f"\nBest epoch metrics (Epoch {best_avg_epoch+1}):")
+        print(f"  Average validation accuracy: {best_avg:.2f}%")
+        if std_values:
+            print(f"  Standard deviation: {best_std:.2f}%")
+            # Calculate confidence intervals
+            k = int(run.data.params.get("k_folds", 3))
+            confidence_level = 0.8  # 80% confidence level used in your study
+            t_critical = stats.t.ppf(confidence_level, df=k-1)
+            lower_bound = best_avg - (t_critical * best_std / np.sqrt(k))
+            upper_bound = best_avg + (t_critical * best_std / np.sqrt(k))
+            print(f"  {confidence_level*100:.0f}% confidence interval: [{lower_bound:.2f}%, {upper_bound:.2f}%]")
+            print(f"  Lower bound (study objective): {lower_bound:.2f}%")
+
+
+def enhanced_optuna_analysis(study, show_plots=True, top_n_trials=10):
+    """
+    Display comprehensive insights about an Optuna hyperparameter optimization study.
+    
+    Args:
+        study: Optuna study object
+        show_plots: Whether to display visualizations
+        top_n_trials: Number of top trials to analyze in detail
+        
+    Returns:
+        dict: Dictionary with summary statistics
+    """
+    if study is None or len(study.trials) == 0:
+        print("No valid study or trials available for analysis.")
+        return {}
+    
+    completed_trials = [t for t in study.trials if t.state == optuna.trial.TrialState.COMPLETE]
+    pruned_trials = [t for t in study.trials if t.state == optuna.trial.TrialState.PRUNED]
+    
+    # Basic statistics
+    stats = {
+        "study_name": study.study_name,
+        "total_trials": len(study.trials),
+        "completed_trials": len(completed_trials),
+        "pruned_trials": len(pruned_trials),
+        "completion_rate": len(completed_trials) / len(study.trials) if study.trials else 0,
+    }
+    
+    print(f"Study: {stats['study_name']}")
+    print(f"Total trials: {stats['total_trials']}")
+    print(f"Completed trials: {stats['completed_trials']} ({stats['completion_rate']:.1%})")
+    print(f"Pruned trials: {stats['pruned_trials']} ({1-stats['completion_rate']:.1%})")
+    
+    if len(completed_trials) == 0:
+        print("No completed trials available for analysis.")
+        return stats
+    
+    # Get trials dataframe and sort by value (descending)
+    trials_df = study.trials_dataframe()
+    if 'value' in trials_df.columns:
+        trials_df = trials_df.sort_values('value', ascending=False)
+        display(trials_df.head(5))  # Show top 5 trials
+    else:
+        display(trials_df.head())
+    
+    # Analyze values of completed trials
+    values = [t.value for t in completed_trials if t.value is not None]
+    if values:
+        stats["best_value"] = max(values)
+        stats["worst_value"] = min(values)
+        stats["median_value"] = np.median(values)
+        stats["mean_value"] = np.mean(values)
+        stats["std_value"] = np.std(values)
+        
+        print("\nPerformance statistics (objective value):")
+        print(f"  Best: {stats['best_value']:.2f}")
+        print(f"  Median: {stats['median_value']:.2f}")
+        print(f"  Mean: {stats['mean_value']:.2f} ± {stats['std_value']:.2f}")
+        print(f"  Worst completed: {stats['worst_value']:.2f}")
+    
+    # Best trial analysis
+    if completed_trials:
+        print("\nBest trial:")
+        best_trial = study.best_trial
+        print(f"  Trial {best_trial.number}: {best_trial.value:.2f}")
+        for key, value in best_trial.params.items():
+            print(f"     {key}: {value}")
+        print()
+    
+    # Parameter importance analysis
+    if len(completed_trials) >= 2:
+        print("\nParameter importance analysis:")
+        try:
+            importances = optuna.importance.get_param_importances(study)
+            for param, importance in importances.items():
+                print(f"  {param}: {importance:.4f}")
+            
+            # Parameter distributions
+            print("\nParameter distributions in successful trials:")
+            param_names = list(study.best_params.keys())
+            for param in param_names:
+                values = [t.params[param] for t in completed_trials if param in t.params]
+                if not values:
+                    continue
+                    
+                if isinstance(values[0], (int, float)):
+                    mean_val = np.mean(values)
+                    std_val = np.std(values)
+                    min_val = min(values)
+                    max_val = max(values)
+                    best_val = study.best_params[param]
+                    
+                    print(f"  {param}:")
+                    print(f"    Range: {min_val} to {max_val}")
+                    print(f"    Mean: {mean_val:.4g} ± {std_val:.4g}")
+                    print(f"    Best trial: {best_val}")
+                else:
+                    # For categorical parameters
+                    counter = collections.Counter(values)
+                    best_val = study.best_params[param]
+                    print(f"  {param}:")
+                    for val, count in counter.most_common():
+                        marker = " (best)" if val == best_val else ""
+                        print(f"    {val}: {count} trials{marker}")
+        except Exception as e:
+            print(f"Could not analyze parameter importance: {e}")
+    
+    # Visualizations
+    if show_plots and len(completed_trials) >= 2:
+        # Optimization history
+        plt.figure(figsize=(12, 6))
+        optuna.visualization.matplotlib.plot_optimization_history(study)
+        plt.title('Optimization History')
+        plt.tight_layout()
+        plt.show()
+        
+        # Parameter importances
+        try:
+            plt.figure(figsize=(12, 6))
+            optuna.visualization.matplotlib.plot_param_importances(study)
+            plt.title('Parameter Importances')
+            plt.tight_layout()
+            plt.show()
+        except Exception as e:
+            print(f"Could not plot parameter importances: {e}")
+        
+        # Parallel coordinate plot for different parameters
+        try:
+            plt.figure(figsize=(14, 7))
+            optuna.visualization.matplotlib.plot_parallel_coordinate(study)
+            plt.title('Parallel Coordinate Plot')
+            plt.tight_layout()
+            plt.show()
+        except Exception as e:
+            print(f"Could not plot parallel coordinates: {e}")
+            
+    
+    return stats

@@ -187,3 +187,53 @@ def train_model(model, criterion, optimizer, train_loader, val_loader, max_epoch
         model.load_state_dict(best_model_state)
     
     return model, history, best_val_acc
+
+# Full evaluation function without batch limits
+def evaluate_full(model, test_loader, criterion, disable_progress=False):
+    """Evaluate model on the full dataset without batch limits"""
+    model.eval()
+    running_loss = 0.0
+    correct = 0
+    total = 0
+    all_preds = []
+    all_labels = []
+    
+    print(f"Evaluating model on full test set (no batch limit)...")
+    
+    with torch.no_grad():
+        for inputs, labels in tqdm(test_loader, desc="Full Evaluation", disable=disable_progress):
+            # Move data to device
+            inputs, labels = inputs.to(DEVICE), labels.to(DEVICE)
+            
+            # Forward pass
+            outputs = model(inputs)
+            loss = criterion(outputs, labels)
+            
+            # Statistics
+            running_loss += loss.item() * inputs.size(0)
+            _, predicted = torch.max(outputs, 1)
+            total += labels.size(0)
+            correct += (predicted == labels).sum().item()
+            
+            # Store predictions and labels for later analysis
+            all_preds.extend(predicted.cpu().numpy())
+            all_labels.extend(labels.cpu().numpy())
+            
+            # Periodically clear GPU cache to avoid memory issues
+            if torch.cuda.is_available() and (len(all_preds) % (50 * test_loader.batch_size) == 0):
+                torch.cuda.empty_cache()
+    
+    # Calculate statistics
+    if total > 0:  # Avoid division by zero
+        epoch_loss = running_loss / total
+        epoch_acc = 100 * correct / total
+    else:
+        epoch_loss = 0
+        epoch_acc = 0
+        all_preds = []
+        all_labels = []
+    
+    print(f"Evaluated on {total} samples: Loss={epoch_loss:.4f}, Accuracy={epoch_acc:.2f}%")
+    
+    return epoch_loss, epoch_acc, all_preds, all_labels
+
